@@ -74,6 +74,9 @@ module red_pitaya_dsp #(
    output     [ 14-1: 0] pwm1,
    output     [ 14-1: 0] pwm2,
    output     [ 14-1: 0] pwm3,
+   
+   //trigger input for PID freeze
+   input                 trig_ext_i      ,  // external trigger
 
    // trigger outputs for the scope
    output                trig_o,   // output from trigger dsp module
@@ -308,6 +311,7 @@ generate for (j = 0; j < 3; j = j+1) begin
      .rstn_i       (  rstn_i         ),  // reset - active low
      .dat_i        (  input_signal [j] ),  // input data
      .dat_o        (  output_direct[j]),  // output data
+     .trig_ext_i   (  trig_ext_i     ), // external trigger PID freeze
 	 
 	 //communincation with PS
 	 .addr ( sys_addr[16-1:0] ),

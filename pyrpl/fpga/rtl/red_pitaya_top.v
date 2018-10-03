@@ -516,6 +516,8 @@ red_pitaya_dsp i_dsp (
   .pwm1            (  pwm_signals[1]         ),
   .pwm2            (  pwm_signals[2]         ),
   .pwm3            (  pwm_signals[3]         ),
+  
+  .trig_ext_i      (  exp_p_in[0]            ),
 
   .trig_o          (  dsp_trigger            ),
 

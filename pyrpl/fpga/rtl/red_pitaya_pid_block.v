@@ -78,11 +78,12 @@ module red_pitaya_pid_block #(
    parameter     ARBITRARY_SATURATION = 1
 )
 (
-   // data
+   // data & trigger
    input                 clk_i           ,  // clock
    input                 rstn_i          ,  // reset - active low
    input      [ 14-1: 0] dat_i           ,  // input data
    output     [ 14-1: 0] dat_o           ,  // output data
+   input                 trig_ext_i      ,  // external trigger
 
    // communication with PS
    input      [ 16-1: 0] addr,
@@ -225,7 +226,10 @@ always @(posedge clk_i) begin
       int_reg  <= {IBW{1'b0}};
    end
    else begin
-      ki_mult <= $signed(error) * $signed(set_ki) ;
+      if (ext_trig_in[3] == 1'b1)   //freeze integrator
+         ki_mult <= {16+GAINBITS{1'b0}};
+      else
+         ki_mult <= $signed(error) * $signed(set_ki) ;
       if (ival_write)
          int_reg <= { {IBW-16-ISR{set_ival[16-1]}},set_ival[16-1:0],{ISR{1'b0}}};
       else if (int_sum[IBW+1-1:IBW+1-2] == 2'b01) //normal positive saturation
@@ -276,6 +280,28 @@ generate
 endgenerate 
 
 //---------------------------------------------------------------------------------
+//  External trigger for PID freeze
+
+reg     [  5-1: 0] ext_trig_in; //----------- External trigger
+wire    pe_ext_trig_in;
+reg     [   MAXBW-1: 0] pid_sum_freeze; 
+
+// synchronize external trigger to clk_i and store current pid_sum value
+always @(posedge clk_i) begin
+    if (rstn_i == 1'b0) begin
+        pid_sum_freeze  <= {MAXBW{1'b0}};
+        ext_trig_in <= 4'b0;
+    end
+    else begin
+        ext_trig_in <= {ext_trig_in[3:0],trig_ext_i};
+    if (pe_ext_trig_in == 1'b1) 
+        pid_sum_freeze <= pid_sum;
+    end    
+end
+
+//positive edge detection of trigger 
+assign pe_ext_trig_in = ext_trig_in[2] & ~ext_trig_in[3];
+//---------------------------------------------------------------------------------
 //  Sum together - saturate output - 1 cycle delay
 
 localparam MAXBW = 17; //maximum possible bitwidth for pid_sum
@@ -287,7 +313,9 @@ reg signed  [   14-1: 0] pid_out;
 		      pid_out    <= 14'b0;
 		   end
 		   else begin
-		      if ({pid_sum[MAXBW-1],|pid_sum[MAXBW-2:13]} == 2'b01) //positive overflow
+              if (ext_trig_in[4] == 1'b1)   //freeze output
+                pid_out <= pid_sum_freeze[14-1:0];
+		      else if ({pid_sum[MAXBW-1],|pid_sum[MAXBW-2:13]} == 2'b01) //positive overflow
 		         pid_out <= 14'h1FFF;
 		      else if ({pid_sum[MAXBW-1],&pid_sum[MAXBW-2:13]} == 2'b10) //negative overflow
 		         pid_out <= 14'h2000;

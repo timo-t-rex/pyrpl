@@ -226,19 +226,29 @@ always @(posedge clk_i) begin
       int_reg  <= {IBW{1'b0}};
    end
    else begin
-      if (ext_trig_in[3] == 1'b1)   //freeze integrator
+      if (ext_trig_in[3] == 1'b1) begin   //freeze integrator
          ki_mult <= {16+GAINBITS{1'b0}};
-      else
+         if (ival_write)
+            int_reg <= { {IBW-16-ISR{set_ival[16-1]}},set_ival[16-1:0],{ISR{1'b0}}};
+         else if (int_sum[IBW+1-1:IBW+1-2] == 2'b01) //normal positive saturation
+            int_reg <= {1'b0,{IBW-1{1'b1}}};
+         else if (int_sum[IBW+1-1:IBW+1-2] == 2'b10) // negative saturation
+            int_reg <= {1'b1,{IBW-1{1'b0}}};
+         else
+            int_reg <= int_sum[IBW-1:0]; // use sum as it is
+      end     
+      else begin
          ki_mult <= $signed(error) * $signed(set_ki) ;
-      if (ival_write)
-         int_reg <= { {IBW-16-ISR{set_ival[16-1]}},set_ival[16-1:0],{ISR{1'b0}}};
-      else if (int_sum[IBW+1-1:IBW+1-2] == 2'b01) //normal positive saturation
-         int_reg <= {1'b0,{IBW-1{1'b1}}};
-      else if (int_sum[IBW+1-1:IBW+1-2] == 2'b10) // negative saturation
-         int_reg <= {1'b1,{IBW-1{1'b0}}};
-      else
-         int_reg <= int_sum[IBW-1:0]; // use sum as it is
-   end
+        if (ival_write)
+            int_reg <= { {IBW-16-ISR{set_ival[16-1]}},set_ival[16-1:0],{ISR{1'b0}}};
+        else if (int_sum[IBW+1-1:IBW+1-2] == 2'b01) //normal positive saturation
+            int_reg <= {1'b0,{IBW-1{1'b1}}};
+        else if (int_sum[IBW+1-1:IBW+1-2] == 2'b10) // negative saturation
+            int_reg <= {1'b1,{IBW-1{1'b0}}};
+        else
+            int_reg <= int_sum[IBW-1:0]; // use sum as it is
+      end
+    end
 end
 
 assign int_sum = $signed(ki_mult) + $signed(int_reg) ;
@@ -313,17 +323,25 @@ reg signed  [   14-1: 0] pid_out;
 		      pid_out    <= 14'b0;
 		   end
 		   else begin
-              if (ext_trig_in[4] == 1'b1)   //freeze output
-                pid_out <= pid_sum_freeze[14-1:0];
-		      else if ({pid_sum[MAXBW-1],|pid_sum[MAXBW-2:13]} == 2'b01) //positive overflow
-		         pid_out <= 14'h1FFF;
-		      else if ({pid_sum[MAXBW-1],&pid_sum[MAXBW-2:13]} == 2'b10) //negative overflow
-		         pid_out <= 14'h2000;
-		      else
-		         pid_out <= pid_sum[14-1:0];
+              if (ext_trig_in[4] == 1'b1) begin  //freeze output
+                if ({pid_sum_freeze[MAXBW-1],|pid_sum_freeze[MAXBW-2:13]} == 2'b01) //positive overflow
+                    pid_out <= 14'h1FFF;
+                else if ({pid_sum_freeze[MAXBW-1],&pid_sum_freeze[MAXBW-2:13]} == 2'b10) //negative overflow
+                    pid_out <= 14'h2000;
+                else
+                    pid_out <= pid_sum_freeze[14-1:0];
+              end  
+		      else 
+		          if ({pid_sum[MAXBW-1],|pid_sum[MAXBW-2:13]} == 2'b01) //positive overflow
+		              pid_out <= 14'h1FFF;
+		          else 
+		              if ({pid_sum[MAXBW-1],&pid_sum[MAXBW-2:13]} == 2'b10) //negative overflow
+		                  pid_out <= 14'h2000;
+		              else
+		                  pid_out <= pid_sum[14-1:0];
 		   end
 		end
-assign pid_sum = $signed(kp_reg) + $signed(int_shr) + $signed(kd_reg_s);
+assign pid_sum = $signed(kp_reg) + $signed(int_shr); // + $signed(kd_reg_s);
 
 generate 
 	if (ARBITRARY_SATURATION == 0)

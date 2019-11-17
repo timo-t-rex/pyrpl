@@ -311,6 +311,7 @@ end
 
 //positive edge detection of trigger 
 assign pe_ext_trig_in = ext_trig_in[2] & ~ext_trig_in[3];
+
 //---------------------------------------------------------------------------------
 //  Sum together - saturate output - 1 cycle delay
 
@@ -323,7 +324,7 @@ reg signed  [   14-1: 0] pid_out;
 		      pid_out    <= 14'b0;
 		   end
 		   else begin
-              if (ext_trig_in[4] == 1'b1) begin  //freeze output
+              if (ext_trig_in[3] == 1'b1) begin  //freeze output
                 if ({pid_sum_freeze[MAXBW-1],|pid_sum_freeze[MAXBW-2:13]} == 2'b01) //positive overflow
                     pid_out <= 14'h1FFF;
                 else if ({pid_sum_freeze[MAXBW-1],&pid_sum_freeze[MAXBW-2:13]} == 2'b10) //negative overflow
